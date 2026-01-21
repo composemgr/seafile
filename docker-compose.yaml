@@ -1,0 +1,55 @@
+# nginx proxy address - http://172.17.0.1:8113
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "5m"
+    max-file: "1"
+
+services:
+  seafile:
+    image: seafile/seafile:latest
+    container_name: seafile-app
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - seafile
+    ports:
+      - "8113:8113"
+    environment:
+      TZ: ${TZ:-America/New_York}
+    volumes:
+      - ./rootfs/data/seafile:/data
+      - ./rootfs/config/seafile:/config
+    depends_on:
+      - seafile-db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8113"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  seafile-db:
+    image: mariadb:11
+    container_name: seafile-db
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - seafile
+    environment:
+      TZ: ${TZ:-America/New_York}
+      MARIADB_DATABASE: ${DB_CREATE_DATABASE_NAME:-seafile}
+      MARIADB_USER: ${DB_USER_NAME:-seafile}
+      MARIADB_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+      MARIADB_ROOT_PASSWORD: ${DB_ADMIN_PASS:-changeme_root_password}
+    volumes:
+      - ./rootfs/db/mariadb/seafile:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  seafile:
+    external: false
