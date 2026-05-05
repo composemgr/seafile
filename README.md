@@ -50,9 +50,9 @@ See `docker-compose.yaml` for complete list of configurable options.
 
 ## 📂 Volumes
 
-- `./rootfs/data/seafile` - Data storage
-- `./rootfs/config/seafile` - Data storage
-- `./rootfs/data/db/mariadb/seafile` - Data storage
+- `./volumes/data/seafile` - Data storage
+- `./volumes/config/seafile` - Data storage
+- `./volumes/data/db/mariadb/seafile` - Data storage
 
 ## 🔐 Security
 
