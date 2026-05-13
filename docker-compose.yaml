@@ -1,5 +1,6 @@
 # nginx proxy address - http://172.17.0.1:8113
 
+name: seafile
 x-logging: &default-logging
   driver: json-file
   options:
@@ -8,31 +9,42 @@ x-logging: &default-logging
 
 services:
   seafile:
-    image: seafile/seafile:latest
+    image: seafileltd/seafile-mc:latest
+    pull_policy: always
     container_name: seafile-app
-    restart: unless-stopped
+    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
+    restart: always
     logging: *default-logging
     networks:
       - seafile
     ports:
-      - "8113:8113"
+      - "172.17.0.1:8113:80"
     environment:
       TZ: ${TZ:-America/New_York}
+      DB_HOST: seafile-db
+      DB_ROOT_PASSWD: ${DB_ADMIN_PASS:-changeme_admin_password}
+      SEAFILE_ADMIN_EMAIL: ${APP_ADMIN_USER:-admin@example.com}
+      SEAFILE_ADMIN_PASSWORD: ${APP_ADMIN_PASS:-changeme_admin_password}
+      SEAFILE_SERVER_LETSENCRYPT: false
+      SEAFILE_SERVER_HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}.${BASE_DOMAIN_NAME:-example.com}
+      TIME_ZONE: ${TZ:-America/New_York}
     volumes:
-      - ./volumes/data/seafile:/data
-      - ./volumes/config/seafile:/config
+      - ./volumes/data/seafile:/shared
     depends_on:
-      - seafile-db
+      seafile-db:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8113"]
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 30s
       timeout: 10s
       retries: 3
 
   seafile-db:
-    image: mariadb:11
+    image: mariadb:latest
+    pull_policy: always
     container_name: seafile-db
-    restart: unless-stopped
+    hostname: seafile-db
+    restart: always
     logging: *default-logging
     networks:
       - seafile
@@ -41,7 +53,7 @@ services:
       MARIADB_DATABASE: ${DB_CREATE_DATABASE_NAME:-seafile}
       MARIADB_USER: ${DB_USER_NAME:-seafile}
       MARIADB_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
-      MARIADB_ROOT_PASSWORD: ${DB_ADMIN_PASS:-changeme_root_password}
+      MARIADB_ROOT_PASSWORD: ${DB_ADMIN_PASS:-changeme_admin_password}
     volumes:
       - ./volumes/data/db/mariadb/seafile:/var/lib/mysql
     healthcheck:
@@ -50,6 +62,18 @@ services:
       timeout: 10s
       retries: 3
 
+  memcached:
+    image: memcached:latest
+    pull_policy: always
+    container_name: seafile-memcached
+    hostname: seafile-memcached
+    restart: always
+    logging: *default-logging
+    networks:
+      - seafile
+    entrypoint: memcached -m 256
+
 networks:
   seafile:
+    name: seafile
     external: false
