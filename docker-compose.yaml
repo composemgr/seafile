@@ -17,6 +17,8 @@ services:
     logging: *default-logging
     networks:
       - seafile
+      - proxy
+      - cloudflare
     ports:
       - "172.17.0.1:8113:80"
     environment:
@@ -28,6 +30,8 @@ services:
       SEAFILE_SERVER_LETSENCRYPT: false
       SEAFILE_SERVER_HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}.${BASE_DOMAIN_NAME:-example.com}
       TIME_ZONE: ${TZ:-America/New_York}
+      CONTAINER_NAME: seafile-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
     volumes:
       - ./volumes/data/seafile:/shared
     depends_on:
@@ -38,6 +42,22 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    labels:
+      - 'traefik.enable=true'
+      - 'cloudflare.enable=true'
+      - 'traefik.docker.network=proxy'
+      - 'cloudflare.service=http://seafile-app:80'
+      - 'cloudflare.hostname=seafile.${CLOUDFLARE_ZONE_NAME:-}'
+      - 'traefik.http.routers.seafile-app.entrypoints=http'
+      - 'traefik.http.routers.seafile-app-secure.tls=true'
+      - 'traefik.http.routers.seafile-app.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.middlewares.seafile-app-https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.routers.seafile-app.middlewares=seafile-app-https-redirect'
+      - 'traefik.http.routers.seafile-app-secure.entrypoints=https'
+      - 'traefik.http.routers.seafile-app-secure.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.routers.seafile-app-secure.tls.certresolver=cloudflare'
+      - 'traefik.http.routers.seafile-app-secure.service=seafile-app'
+      - 'traefik.http.services.seafile-app.loadbalancer.server.port=80'
 
   seafile-db:
     image: mariadb:latest
@@ -54,6 +74,7 @@ services:
       MARIADB_USER: ${DB_USER_NAME:-seafile}
       MARIADB_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
       MARIADB_ROOT_PASSWORD: ${DB_ADMIN_PASS:-changeme_admin_password}
+      CONTAINER_NAME: seafile-db
     volumes:
       - ./volumes/data/db/mariadb/seafile:/var/lib/mysql
     healthcheck:
@@ -72,8 +93,14 @@ services:
     networks:
       - seafile
     entrypoint: memcached -m 256
+    environment:
+      CONTAINER_NAME: seafile-memcached
 
 networks:
   seafile:
     name: seafile
     external: false
+  proxy:
+    external: true
+  cloudflare:
+    external: true
